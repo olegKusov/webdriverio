@@ -5,7 +5,7 @@ import logger from '@wdio/logger'
 import { webdriverMonad, sessionEnvironmentDetector, startWebDriver } from '@wdio/utils'
 import { validateConfig } from '@wdio/config'
 import { deepmerge } from 'deepmerge-ts'
-import type { Options } from '@wdio/types'
+import type { Options, Capabilities } from '@wdio/types'
 
 import command from './command.js'
 import { DEFAULTS } from './constants.js'
@@ -16,7 +16,7 @@ const log = logger('webdriver')
 
 export default class WebDriver {
     static async newSession(
-        options: Options.WebDriver,
+        options: Capabilities.RemoteConfig,
         modifier?: (...args: any[]) => any,
         userPrototype = {},
         customCommandWrapper?: (...args: any[]) => any
@@ -123,9 +123,9 @@ export default class WebDriver {
          * initiate WebDriver Bidi
          */
         const bidiPrototype: PropertyDescriptorMap = {}
-        const webSocketUrl = 'alwaysMatch' in options.capabilities!
-            ? options.capabilities.alwaysMatch?.webSocketUrl
-            : options.capabilities!.webSocketUrl
+        const webSocketUrl = 'alwaysMatch' in options.requestedCapabilities
+            ? options.requestedCapabilities.alwaysMatch?.webSocketUrl
+            : options.requestedCapabilities.webSocketUrl
         if (webSocketUrl) {
             log.info(`Register BiDi handler for session with id ${options.sessionId}`)
             Object.assign(bidiPrototype, initiateBidi(webSocketUrl as any as string, options.strictSSL))
@@ -151,12 +151,13 @@ export default class WebDriver {
      * @param   {object} instance  the object we get from a new browser session.
      * @returns {string}           the new session id of the browser
      */
-    static async reloadSession(instance: Client, newCapabilities?: WebdriverIO.Capabilities) {
+    static async reloadSession(instance: Client, newCapabilities?: Capabilities.WithRequestedCapabilities['capabilities']) {
         const capabilities = deepmerge(instance.requestedCapabilities, newCapabilities || {})
-        const params: Options.WebDriver = { ...instance.options, capabilities }
+        const params: Capabilities.RemoteConfig = { ...instance.options, capabilities }
 
         let driverProcess: ChildProcess | undefined
-        if (newCapabilities?.browserName) {
+        const caps = newCapabilities && 'alwaysMatch' in newCapabilities ? newCapabilities.alwaysMatch : newCapabilities
+        if (caps?.browserName) {
             delete params.port
             delete params.hostname
             driverProcess = await startWebDriver(params)
